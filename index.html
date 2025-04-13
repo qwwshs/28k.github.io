@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日语单词消消乐</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #fff9c4;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+            user-select: none;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .congrats {
+            color: #e91e63;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .timer {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #2196F3;
+        }
+        
+        .level-info {
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #4CAF50;
+        }
+        
+        .game-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 800px;
+            margin: 0 auto 20px;
+            gap: 10px;
+        }
+        
+        .bubble {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2), inset 0 -5px 10px rgba(0,0,0,0.2);
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .bubble::after {
+            content: '';
+            position: absolute;
+            top: 10%;
+            left: 20%;
+            width: 30%;
+            height: 30%;
+            background: rgba(255,255,255,0.3);
+            border-radius: 50%;
+            filter: blur(5px);
+        }
+        
+        .bubble:hover {
+            transform: scale(1.05);
+            box-shadow: 0 12px 25px rgba(0,0,0,0.3), inset 0 -5px 10px rgba(0,0,0,0.2);
+        }
+        
+        .bubble:active {
+            transform: scale(0.95);
+        }
+        
+        .japanese {
+            background-color: #2196F3; /* 蓝色日文泡泡 */
+            color: white;
+            font-family: "MS Mincho", serif;
+        }
+        
+        .chinese {
+            background-color: #4CAF50; /* 绿色中文泡泡 */
+            color: white;
+            font-family: "SimSun", "宋体", serif;
+        }
+        
+        .selected {
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(255,255,0,0.8), 0 10px 20px rgba(0,0,0,0.2);
+        }
+        
+        .matched {
+            visibility: hidden;
+            opacity: 0;
+            transition: visibility 0s 0.5s, opacity 0.5s linear;
+        }
+        
+        .button-container {
+            margin: 20px 0;
+        }
+        
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 0 10px;
+            cursor: pointer;
+            background-color: #ff5722;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #e64a19;
+        }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>日语单词消消乐</h1>
+    <div class="congrats">恭喜你闯关成功！</div>
+    <div class="timer">用时: 00:00:00</div>
+    <div class="level-info" id="levelInfo">关卡1: 名词</div>
+    
+    <div class="button-container">
+        <button id="startBtn">开始游戏</button>
+        <button id="resetBtn">重置游戏</button>
+    </div>
+    
+    <div class="game-container" id="gameContainer"></div>
+
+    <!-- 预加载音频 -->
+    <div style="display:none">
+        <audio id="correctSound" src="https://www.soundjay.com/buttons/sounds/button-09.mp3" preload="auto"></audio>
+        <audio id="wrongSound" src="https://www.soundjay.com/buttons/sounds/button-10.mp3" preload="auto"></audio>
+        <audio id="successSound" src="https://www.soundjay.com/buttons/sounds/button-21.mp3" preload="auto"></audio>
+    </div>
+
+    <script>
+        // 游戏数据
+        const gameData = {
+            level1: {
+                name: "名词",
+                pairs: [
+                    { japanese: "マフラー", chinese: "围巾" },
+                    { japanese: "ネックレス", chinese: "项链" },
+                    { japanese: "いみ", chinese: "意思" },
+                    { japanese: "ふんいき", chinese: "氛围" },
+                    { japanese: "ふどうさんや", chinese: "房地产商" },
+                    { japanese: "いんしょくてん", chinese: "饮食店" },
+                    { japanese: "ひっこし", chinese: "搬家" },
+                    { japanese: "まご", chinese: "孙子孙女" },
+                    { japanese: "かかり（係）", chinese: "工作人员" },
+                    { japanese: "インタ一ネット", chinese: "互联网" }
+                ]
+            },
+            level2a: {
+                name: "动词(上)",
+                pairs: [
+                    { japanese: "ひろう", chinese: "捡" },
+                    { japanese: "くれる", chinese: "给我（普通词）" },
+                    { japanese: "あげる", chinese: "给出去（普通词）" },
+                    { japanese: "もらう", chinese: "得到（普通词）" },
+                    { japanese: "くださいます", chinese: "给我(尊敬词)" }
+                ]
+            },
+            level2b: {
+                name: "动词(下)",
+                pairs: [
+                    { japanese: "さしあげる", chinese: "给出去 (谦让词)" },
+                    { japanese: "いただく", chinese: "得到 (谦让词)" },
+                    { japanese: "とどける", chinese: "把···送到" },
+                    { japanese: "あんないする", chinese: "向导" },
+                    { japanese: "しょうかいする", chinese: "介绍" }
+                ]
+            },
+            level3: {
+                name: "形容词/副词",
+                pairs: [
+                    { japanese: "すてき", chinese: "漂亮的 " },
+                    { japanese: "とくい", chinese: "擅长" },
+                    { japanese: "しんせん", chinese: "新鲜" },
+                    { japanese: "うまくいく", chinese: "顺利地进行" }
+                ]
+            },
+            level4: {
+                name: "连词/其他",
+                pairs: [
+                    { japanese: "それに", chinese: "而且" },
+                    { japanese: "つまり", chinese: "总之 / 也就是说" },
+                    { japanese: "それで", chinese: "所以" },
+                    { japanese: "そこで", chinese: "所以" },
+                    { japanese: "どういたしまして", chinese: "不用谢" }
+                ]
+            }
+        };
+
+        // 关卡顺序
+        const levelOrder = ['level1', 'level2a', 'level2b', 'level3', 'level4'];
+        
+        // 游戏状态
+        let gameState = {
+            currentLevelIndex: 0,
+            selectedBubble: null,
+            matchedPairs: 0,
+            startTime: null,
+            timerInterval: null,
+            totalSeconds: 0,
+            isPlaying: false
+        };
+
+        // DOM元素
+        const gameContainer = document.getElementById('gameContainer');
+        const startBtn = document.getElementById('startBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const timerDisplay = document.querySelector('.timer');
+        const levelInfo = document.getElementById('levelInfo');
+        const congratsMessage = document.querySelector('.congrats');
+        const correctSound = document.getElementById('correctSound');
+        const wrongSound = document.getElementById('wrongSound');
+        const successSound = document.getElementById('successSound');
+
+        // 初始化游戏
+        function initGame() {
+            gameContainer.innerHTML = '';
+            gameState.selectedBubble = null;
+            gameState.matchedPairs = 0;
+            
+            const currentLevel = levelOrder[gameState.currentLevelIndex];
+            const currentLevelData = gameData[currentLevel];
+            
+            // 更新关卡显示
+            let levelName = '';
+            if (currentLevel === 'level2a') {
+                levelName = '关卡2(上): 动词';
+            } else if (currentLevel === 'level2b') {
+                levelName = '关卡2(下): 动词';
+            } else {
+                levelName = `关卡${gameState.currentLevelIndex + 1}: ${currentLevelData.name}`;
+            }
+            levelInfo.textContent = levelName;
+            
+            // 创建所有泡泡
+            let bubbles = [];
+            currentLevelData.pairs.forEach(pair => {
+                bubbles.push({
+                    text: pair.japanese,
+                    type: 'japanese',
+                    match: pair.chinese
+                });
+                bubbles.push({
+                    text: pair.chinese,
+                    type: 'chinese',
+                    match: pair.japanese
+                });
+            });
+            
+            // 随机打乱泡泡顺序
+            bubbles = shuffleArray(bubbles);
+            
+            // 渲染泡泡
+            bubbles.forEach((bubble, index) => {
+                const bubbleElement = document.createElement('div');
+                bubbleElement.className = `bubble ${bubble.type}`;
+                bubbleElement.textContent = bubble.text;
+                bubbleElement.dataset.index = index;
+                bubbleElement.dataset.text = bubble.text;
+                bubbleElement.dataset.match = bubble.match;
+                bubbleElement.dataset.type = bubble.type;
+                bubbleElement.addEventListener('click', handleBubbleClick);
+                gameContainer.appendChild(bubbleElement);
+            });
+        }
+
+        // 处理泡泡点击
+        function handleBubbleClick(event) {
+            if (!gameState.isPlaying) return;
+            
+            const clickedBubble = event.target;
+            
+            if (clickedBubble.classList.contains('matched')) return;
+            
+            if (gameState.selectedBubble) {
+                if (gameState.selectedBubble === clickedBubble) {
+                    gameState.selectedBubble.classList.remove('selected');
+                    gameState.selectedBubble = null;
+                    return;
+                }
+                
+                const firstType = gameState.selectedBubble.dataset.type;
+                const secondType = clickedBubble.dataset.type;
+                
+                if (firstType !== secondType) {
+                    const firstText = gameState.selectedBubble.dataset.text;
+                    const secondText = clickedBubble.dataset.text;
+                    const firstMatch = gameState.selectedBubble.dataset.match;
+                    const secondMatch = clickedBubble.dataset.match;
+                    
+                    if (firstText === secondMatch && secondText === firstMatch) {
+                        // 匹配成功
+                        correctSound.currentTime = 0;
+                        correctSound.play().catch(e => console.log("音频播放失败:", e));
+                        gameState.selectedBubble.classList.add('matched');
+                        clickedBubble.classList.add('matched');
+                        gameState.matchedPairs++;
+                        
+                        // 检查是否完成当前关卡
+                        const currentLevel = levelOrder[gameState.currentLevelIndex];
+                        const currentLevelData = gameData[currentLevel];
+                        if (gameState.matchedPairs === currentLevelData.pairs.length) {
+                            // 进入下一关或结束游戏
+                            if (gameState.currentLevelIndex < levelOrder.length - 1) {
+                                setTimeout(() => {
+                                    gameState.currentLevelIndex++;
+                                    gameState.matchedPairs = 0;
+                                    initGame();
+                                }, 1000);
+                            } else {
+                                endGame();
+                            }
+                        }
+                    } else {
+                        wrongSound.currentTime = 0;
+                        wrongSound.play().catch(e => console.log("音频播放失败:", e));
+                    }
+                } else {
+                    wrongSound.currentTime = 0;
+                    wrongSound.play().catch(e => console.log("音频播放失败:", e));
+                }
+                
+                gameState.selectedBubble.classList.remove('selected');
+                gameState.selectedBubble = null;
+            } else {
+                gameState.selectedBubble = clickedBubble;
+                clickedBubble.classList.add('selected');
+            }
+        }
+
+        // 开始游戏
+        function startGame() {
+            const dummyAudio = new Audio();
+            dummyAudio.src = 'data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU...';
+            dummyAudio.play().then(() => {
+                dummyAudio.remove();
+                
+                gameState.isPlaying = true;
+                gameState.startTime = new Date();
+                gameState.timerInterval = setInterval(updateTimer, 1000);
+                startBtn.disabled = true;
+                congratsMessage.style.display = 'none';
+                initGame();
+            }).catch(e => {
+                console.log("音频解锁失败，继续游戏:", e);
+                gameState.isPlaying = true;
+                gameState.startTime = new Date();
+                gameState.timerInterval = setInterval(updateTimer, 1000);
+                startBtn.disabled = true;
+                congratsMessage.style.display = 'none';
+                initGame();
+            });
+        }
+
+        // 重置游戏
+        function resetGame() {
+            clearInterval(gameState.timerInterval);
+            gameState = {
+                currentLevelIndex: 0,
+                selectedBubble: null,
+                matchedPairs: 0,
+                startTime: null,
+                timerInterval: null,
+                totalSeconds: 0,
+                isPlaying: false
+            };
+            timerDisplay.textContent = '用时: 00:00:00';
+            startBtn.disabled = false;
+            congratsMessage.style.display = 'none';
+            gameContainer.innerHTML = '';
+            levelInfo.textContent = '关卡1: 名词';
+        }
+
+        // 结束游戏
+        function endGame() {
+            gameState.isPlaying = false;
+            clearInterval(gameState.timerInterval);
+            successSound.currentTime = 0;
+            successSound.play().catch(e => console.log("胜利音效播放失败:", e));
+            congratsMessage.style.display = 'block';
+        }
+
+        // 更新计时器
+        function updateTimer() {
+            gameState.totalSeconds++;
+            const hours = Math.floor(gameState.totalSeconds / 3600);
+            const minutes = Math.floor((gameState.totalSeconds % 3600) / 60);
+            const seconds = gameState.totalSeconds % 60;
+            
+            timerDisplay.textContent = `用时: ${padZero(hours)}:${padZero(minutes)}:${padZero(seconds)}`;
+        }
+
+        // 辅助函数：数组随机排序
+        function shuffleArray(array) {
+            const newArray = [...array];
+            for (let i = newArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+            }
+            return newArray;
+        }
+
+        // 辅助函数：补零
+        function padZero(num) {
+            return num < 10 ? `0${num}` : num;
+        }
+
+        // 事件监听
+        startBtn.addEventListener('click', startGame);
+        resetBtn.addEventListener('click', resetGame);
+    </script>
+</body>
+</html>
